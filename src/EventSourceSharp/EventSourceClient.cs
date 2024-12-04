@@ -36,7 +36,7 @@ public class EventSourceClient : IEventSourceClient
             request.Headers.Add("Last-Event-ID", _lastEventId);
         }
 
-        var response = await _httpClient.SendAsync(
+        using var response = await _httpClient.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
