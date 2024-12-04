@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace EventSourceSharp;
 
-public class EventSourceClient
+public class EventSourceClient : IEventSourceClient
 {
     private readonly HttpClient _httpClient = new();
     private CancellationTokenSource? _cancellationTokenSource;
@@ -106,8 +106,6 @@ public class EventSourceClient
                     break;
             }
         }
-
-        Console.WriteLine("No loop");
     }
 
     public void Disconnect()

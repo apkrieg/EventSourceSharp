@@ -9,6 +9,7 @@ public interface IEventSourceClient
     event Action? OnConnect;
     event Action? OnDisconnect;
     event Action<ServerSentEvent>? OnMessage;
+
     Task ConnectAsync(Uri url);
     Task ConnectAsync(Uri url, CancellationToken cancellationToken);
     void Disconnect();
