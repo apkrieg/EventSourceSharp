@@ -18,6 +18,7 @@ public class EventSourceClient : IEventSourceClient
 
     public event Action? OnConnect;
     public event Action? OnDisconnect;
+    public event Action<Exception>? OnError;
     public event Action<ServerSentEvent>? OnMessage;
 
     public Task ConnectAsync(Uri url)
@@ -28,6 +29,13 @@ public class EventSourceClient : IEventSourceClient
 
     public async Task ConnectAsync(Uri url, CancellationToken cancellationToken)
     {
+        if (_running)
+        {
+            var onError = OnError;
+            onError?.Invoke(new EventSourceException("The client is already connected."));
+            return;
+        }
+
         _running = true;
 
         var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -54,8 +62,13 @@ public class EventSourceClient : IEventSourceClient
                 var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
                 await ProcessEventStream(stream, cancellationToken).ConfigureAwait(false);
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                var exception = new EventSourceException("There was an error while connecting to the event source.", e);
+
+                var onError = OnError;
+                onError?.Invoke(exception);
+
                 await Task.Delay(_retryInterval, cancellationToken).ConfigureAwait(false);
             }
         }
