@@ -21,19 +21,19 @@ public class EventSourceClient : IEventSourceClient
     public event Action<Exception>? OnError;
     public event Action<ServerSentEvent>? OnMessage;
 
-    public Task ConnectAsync(Uri url)
-    {
-        _cancellationTokenSource = new CancellationTokenSource();
-        return ConnectAsync(url, _cancellationTokenSource.Token);
-    }
-
-    public async Task ConnectAsync(Uri url, CancellationToken cancellationToken)
+    public async Task ConnectAsync(Uri url, CancellationToken cancellationToken = default)
     {
         if (_running)
         {
             var onError = OnError;
             onError?.Invoke(new EventSourceException("The client is already connected."));
             return;
+        }
+
+        if (cancellationToken == default)
+        {
+            _cancellationTokenSource = new CancellationTokenSource();
+            cancellationToken = _cancellationTokenSource.Token;
         }
 
         _running = true;
