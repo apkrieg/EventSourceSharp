@@ -47,6 +47,7 @@ public class EventSourceClient : IEventSourceClient
         onConnect?.Invoke();
 
         var currentEvent = new ServerSentEvent();
+        var dataBuffer = new StringBuilder();
 
         while (_running && !cancellationToken.IsCancellationRequested)
         {
@@ -58,12 +59,19 @@ public class EventSourceClient : IEventSourceClient
                     _lastEventId = currentEvent.Id;
                 }
 
-                if (currentEvent.Data.Length > 0)
+                if (dataBuffer.Length > 0)
                 {
+                    if (dataBuffer[dataBuffer.Length - 1] == '\n')
+                    {
+                        dataBuffer.Remove(dataBuffer.Length - 1, 1);
+                    }
+                    currentEvent.Data = dataBuffer.ToString();
+
                     var onMessage = OnMessage;
                     onMessage?.Invoke(currentEvent);
                 }
 
+                dataBuffer.Clear();
                 currentEvent = new ServerSentEvent();
                 continue;
             }
@@ -99,8 +107,8 @@ public class EventSourceClient : IEventSourceClient
                     currentEvent.Event = value;
                     break;
                 case "data":
-                    value += "\n";
-                    currentEvent.Data += value;
+                    dataBuffer.Append(value);
+                    dataBuffer.Append("\n");
                     break;
                 case "id":
                     currentEvent.Id = value;
