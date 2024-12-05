@@ -113,7 +113,7 @@ public class EventSourceClient : IEventSourceClient
                     field = line.Substring(0, colonIndex);
                     value = line.Substring(colonIndex + 1);
 
-                    if (value.StartsWith(" "))
+                    if (value.StartsWith(" ", StringComparison.Ordinal))
                     {
                         value = value.Substring(1);
                     }

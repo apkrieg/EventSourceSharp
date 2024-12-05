@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,5 +13,6 @@ public interface IEventSourceClient
 
     Task ConnectAsync(Uri url);
     Task ConnectAsync(Uri url, CancellationToken cancellationToken);
+    Task ProcessEventStream(Stream stream, CancellationToken cancellationToken);
     void Disconnect();
 }
