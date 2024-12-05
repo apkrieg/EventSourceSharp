@@ -40,7 +40,7 @@ public class EventSourceClient : IEventSourceClient
         using var response = await _httpClient.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
 
         var onConnect = OnConnect;
         onConnect?.Invoke();
@@ -59,7 +59,7 @@ public class EventSourceClient : IEventSourceClient
 
         while (_running && !cancellationToken.IsCancellationRequested)
         {
-            var line = await reader.ReadLineAsync();
+            var line = await reader.ReadLineAsync().ConfigureAwait(false);
 
             if (string.IsNullOrWhiteSpace(line))
             {
