@@ -32,7 +32,7 @@ public class EventSourceClient : IEventSourceClient
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
 
-        if (_lastEventId == string.Empty)
+        if (_lastEventId != string.Empty)
         {
             request.Headers.Add("Last-Event-ID", _lastEventId);
         }
