@@ -18,6 +18,7 @@ public class EventSourceClient : IEventSourceClient
 
     public event Action? OnConnect;
     public event Action? OnDisconnect;
+    public event Action<Exception>? OnError;
     public event Action<ServerSentEvent>? OnMessage;
 
     public Task ConnectAsync(Uri url)
@@ -28,6 +29,13 @@ public class EventSourceClient : IEventSourceClient
 
     public async Task ConnectAsync(Uri url, CancellationToken cancellationToken)
     {
+        if (_running)
+        {
+            var onError = OnError;
+            onError?.Invoke(new EventSourceException("The client is already connected."));
+            return;
+        }
+
         _running = true;
 
         var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -52,16 +60,21 @@ public class EventSourceClient : IEventSourceClient
                 onConnect?.Invoke();
 
                 var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-                await ProcessEventStream(stream, cancellationToken).ConfigureAwait(false);
+                await ProcessEventStreamAsync(stream, cancellationToken).ConfigureAwait(false);
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                var exception = new EventSourceException("There was an error while connecting to the event source.", e);
+
+                var onError = OnError;
+                onError?.Invoke(exception);
+
                 await Task.Delay(_retryInterval, cancellationToken).ConfigureAwait(false);
             }
         }
     }
 
-    public async Task ProcessEventStream(Stream stream, CancellationToken cancellationToken)
+    public async Task ProcessEventStreamAsync(Stream stream, CancellationToken cancellationToken)
     {
         using var reader = new StreamReader(stream, Encoding.UTF8, false);
 
@@ -140,7 +153,7 @@ public class EventSourceClient : IEventSourceClient
                     break;
                 case "data":
                     dataBuffer.Append(value);
-                    dataBuffer.Append("\n");
+                    dataBuffer.Append('\n');
                     break;
                 case "id":
                     idBuffer = string.IsNullOrWhiteSpace(value) ? string.Empty : value;
@@ -148,7 +161,7 @@ public class EventSourceClient : IEventSourceClient
                 case "retry":
                     if (int.TryParse(value, out var retry))
                     {
-                        _retryInterval = TimeSpan.FromMilliseconds(retry >= 0 ? retry : 0);
+                        _retryInterval = TimeSpan.FromMilliseconds(Math.Max(retry, 0));
                     }
 
                     break;
