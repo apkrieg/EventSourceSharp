@@ -12,6 +12,7 @@ public class EventSourceClient : IEventSourceClient
 {
     private readonly HttpClient _httpClient = new();
     private CancellationTokenSource? _cancellationTokenSource;
+    private TimeSpan _retryInterval = TimeSpan.FromSeconds(3);
     private bool _running;
     private string _lastEventId = string.Empty;
 
@@ -32,21 +33,32 @@ public class EventSourceClient : IEventSourceClient
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
 
-        if (_lastEventId != string.Empty)
+        while (_running && !cancellationToken.IsCancellationRequested)
         {
-            request.Headers.Add("Last-Event-ID", _lastEventId);
+            try
+            {
+                request.Headers.Remove("Last-Event-ID");
+                if (_lastEventId != string.Empty)
+                {
+                    request.Headers.Add("Last-Event-ID", _lastEventId);
+                }
+
+                using var response = await _httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken).ConfigureAwait(false);
+
+                var onConnect = OnConnect;
+                onConnect?.Invoke();
+
+                var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                await ProcessEventStream(stream, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                await Task.Delay(_retryInterval, cancellationToken).ConfigureAwait(false);
+            }
         }
-
-        using var response = await _httpClient.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken).ConfigureAwait(false);
-
-        var onConnect = OnConnect;
-        onConnect?.Invoke();
-
-        var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-        await ProcessEventStream(stream, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task ProcessEventStream(Stream stream, CancellationToken cancellationToken)
@@ -113,7 +125,7 @@ public class EventSourceClient : IEventSourceClient
                     field = line.Substring(0, colonIndex);
                     value = line.Substring(colonIndex + 1);
 
-                    if (value.StartsWith(" ", StringComparison.Ordinal))
+                    if (value.Length > 0 && value[0] == ' ')
                     {
                         value = value.Substring(1);
                     }
@@ -132,6 +144,13 @@ public class EventSourceClient : IEventSourceClient
                     break;
                 case "id":
                     idBuffer = string.IsNullOrWhiteSpace(value) ? string.Empty : value;
+                    break;
+                case "retry":
+                    if (int.TryParse(value, out var retry))
+                    {
+                        _retryInterval = TimeSpan.FromMilliseconds(retry >= 0 ? retry : 0);
+                    }
+
                     break;
             }
         }
