@@ -41,22 +41,40 @@ public class EventSourceClient : IEventSourceClient
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
-        using var reader = new StreamReader(await response.Content.ReadAsStreamAsync());
 
         var onConnect = OnConnect;
         onConnect?.Invoke();
 
+        var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+        await ProcessEventStream(stream, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ProcessEventStream(Stream stream, CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(stream, Encoding.UTF8, false);
+
         var currentEvent = new ServerSentEvent();
+        string? idBuffer = null;
         var dataBuffer = new StringBuilder();
 
         while (_running && !cancellationToken.IsCancellationRequested)
         {
             var line = await reader.ReadLineAsync();
+
             if (string.IsNullOrWhiteSpace(line))
             {
-                if (currentEvent.Id != string.Empty)
+                switch (idBuffer)
                 {
-                    _lastEventId = currentEvent.Id;
+                    case null:
+                        break;
+                    case "":
+                        _lastEventId = string.Empty;
+                        break;
+                    default:
+                        _lastEventId = idBuffer;
+                        currentEvent.Id = idBuffer;
+                        idBuffer = null;
+                        break;
                 }
 
                 if (dataBuffer.Length > 0)
@@ -65,13 +83,15 @@ public class EventSourceClient : IEventSourceClient
                     {
                         dataBuffer.Remove(dataBuffer.Length - 1, 1);
                     }
+
                     currentEvent.Data = dataBuffer.ToString();
 
                     var onMessage = OnMessage;
                     onMessage?.Invoke(currentEvent);
+
+                    dataBuffer.Clear();
                 }
 
-                dataBuffer.Clear();
                 currentEvent = new ServerSentEvent();
                 continue;
             }
@@ -111,7 +131,7 @@ public class EventSourceClient : IEventSourceClient
                     dataBuffer.Append("\n");
                     break;
                 case "id":
-                    currentEvent.Id = value;
+                    idBuffer = string.IsNullOrWhiteSpace(value) ? string.Empty : value;
                     break;
             }
         }
