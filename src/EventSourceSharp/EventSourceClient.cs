@@ -153,7 +153,7 @@ public class EventSourceClient : IEventSourceClient
                     break;
                 case "data":
                     dataBuffer.Append(value);
-                    dataBuffer.Append("\n");
+                    dataBuffer.Append('\n');
                     break;
                 case "id":
                     idBuffer = string.IsNullOrWhiteSpace(value) ? string.Empty : value;
@@ -161,7 +161,7 @@ public class EventSourceClient : IEventSourceClient
                 case "retry":
                     if (int.TryParse(value, out var retry))
                     {
-                        _retryInterval = TimeSpan.FromMilliseconds(retry >= 0 ? retry : 0);
+                        _retryInterval = TimeSpan.FromMilliseconds(Math.Max(retry, 0));
                     }
 
                     break;
