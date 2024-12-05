@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,7 +13,7 @@ public class EventSourceClient : IEventSourceClient
     private readonly HttpClient _httpClient = new();
     private CancellationTokenSource? _cancellationTokenSource;
     private bool _running;
-    private string? _lastEventId;
+    private string _lastEventId = string.Empty;
 
     public event Action? OnConnect;
     public event Action? OnDisconnect;
@@ -31,7 +32,7 @@ public class EventSourceClient : IEventSourceClient
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
 
-        if (!string.IsNullOrEmpty(_lastEventId))
+        if (_lastEventId == string.Empty)
         {
             request.Headers.Add("Last-Event-ID", _lastEventId);
         }
@@ -52,12 +53,12 @@ public class EventSourceClient : IEventSourceClient
             var line = await reader.ReadLineAsync();
             if (string.IsNullOrWhiteSpace(line))
             {
-                if (currentEvent.Id != null)
+                if (currentEvent.Id != string.Empty)
                 {
                     _lastEventId = currentEvent.Id;
                 }
 
-                if (currentEvent.Data?.Length > 0)
+                if (currentEvent.Data.Length > 0)
                 {
                     var onMessage = OnMessage;
                     onMessage?.Invoke(currentEvent);
