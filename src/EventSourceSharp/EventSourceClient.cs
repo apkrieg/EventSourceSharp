@@ -60,7 +60,7 @@ public class EventSourceClient : IEventSourceClient
                 onConnect?.Invoke();
 
                 var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-                await ProcessEventStream(stream, cancellationToken).ConfigureAwait(false);
+                await ProcessEventStreamAsync(stream, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -74,7 +74,7 @@ public class EventSourceClient : IEventSourceClient
         }
     }
 
-    public async Task ProcessEventStream(Stream stream, CancellationToken cancellationToken)
+    public async Task ProcessEventStreamAsync(Stream stream, CancellationToken cancellationToken)
     {
         using var reader = new StreamReader(stream, Encoding.UTF8, false);
 

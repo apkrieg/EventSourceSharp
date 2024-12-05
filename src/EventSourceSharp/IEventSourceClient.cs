@@ -13,6 +13,6 @@ public interface IEventSourceClient
 
     Task ConnectAsync(Uri url);
     Task ConnectAsync(Uri url, CancellationToken cancellationToken);
-    Task ProcessEventStream(Stream stream, CancellationToken cancellationToken);
+    Task ProcessEventStreamAsync(Stream stream, CancellationToken cancellationToken);
     void Disconnect();
 }
