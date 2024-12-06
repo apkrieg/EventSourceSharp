@@ -8,11 +8,11 @@ using System.Threading.Tasks;
 
 namespace EventSourceSharp;
 
-public class EventSourceClient(int maxRetries = 10) : IEventSourceClient
+public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) : IEventSourceClient
 {
     private readonly HttpClient _httpClient = new();
     private CancellationTokenSource? _cancellationTokenSource;
-    private TimeSpan _retryInterval = TimeSpan.FromSeconds(3);
+    private TimeSpan _retryInterval = TimeSpan.FromMilliseconds(retryInterval);
     private bool _running;
     private string _lastEventId = string.Empty;
 
