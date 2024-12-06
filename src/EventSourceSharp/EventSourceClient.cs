@@ -8,11 +8,11 @@ using System.Threading.Tasks;
 
 namespace EventSourceSharp;
 
-public class EventSourceClient : IEventSourceClient
+public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) : IEventSourceClient
 {
     private readonly HttpClient _httpClient = new();
     private CancellationTokenSource? _cancellationTokenSource;
-    private TimeSpan _retryInterval = TimeSpan.FromSeconds(3);
+    private TimeSpan _retryInterval = TimeSpan.FromMilliseconds(retryInterval);
     private bool _running;
     private string _lastEventId = string.Empty;
 
@@ -41,8 +41,17 @@ public class EventSourceClient : IEventSourceClient
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
 
+        var retryCount = 0;
+
         while (_running && !cancellationToken.IsCancellationRequested)
         {
+            if (retryCount >= maxRetries)
+            {
+                var onError = OnError;
+                onError?.Invoke(new EventSourceException("The maximum number of retries has been reached."));
+                break;
+            }
+
             try
             {
                 request.Headers.Remove("Last-Event-ID");
@@ -56,10 +65,12 @@ public class EventSourceClient : IEventSourceClient
                     HttpCompletionOption.ResponseHeadersRead,
                     cancellationToken).ConfigureAwait(false);
 
+                using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+
+                retryCount = 0;
                 var onConnect = OnConnect;
                 onConnect?.Invoke();
 
-                var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
                 await ProcessEventStreamAsync(stream, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception e)
@@ -71,6 +82,8 @@ public class EventSourceClient : IEventSourceClient
 
                 await Task.Delay(_retryInterval, cancellationToken).ConfigureAwait(false);
             }
+
+            retryCount++;
         }
     }
 
