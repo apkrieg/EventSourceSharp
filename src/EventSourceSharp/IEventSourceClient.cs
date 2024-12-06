@@ -7,9 +7,10 @@ namespace EventSourceSharp;
 
 public interface IEventSourceClient
 {
-    event Action? OnConnect;
-    event Action? OnDisconnect;
-    event Action<ServerSentEvent>? OnMessage;
+    event EventHandler? OnConnect;
+    event EventHandler? OnDisconnect;
+    event EventHandler<Exception>? OnError;
+    event EventHandler<ServerSentEventArgs>? OnMessage;
 
     Task ConnectAsync(Uri url, CancellationToken cancellationToken = default);
     Task ProcessEventStreamAsync(Stream stream, CancellationToken cancellationToken);

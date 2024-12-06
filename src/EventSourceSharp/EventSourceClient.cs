@@ -16,17 +16,17 @@ public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) :
     private bool _running;
     private string _lastEventId = string.Empty;
 
-    public event Action? OnConnect;
-    public event Action? OnDisconnect;
-    public event Action<Exception>? OnError;
-    public event Action<ServerSentEvent>? OnMessage;
+    public event EventHandler? OnConnect;
+    public event EventHandler? OnDisconnect;
+    public event EventHandler<Exception>? OnError;
+    public event EventHandler<ServerSentEventArgs>? OnMessage;
 
     public async Task ConnectAsync(Uri url, CancellationToken cancellationToken = default)
     {
         if (_running)
         {
             var onError = OnError;
-            onError?.Invoke(new EventSourceException("The client is already connected."));
+            onError?.Invoke(this, new EventSourceException("The client is already connected."));
             return;
         }
 
@@ -48,7 +48,7 @@ public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) :
             if (retryCount >= maxRetries)
             {
                 var onError = OnError;
-                onError?.Invoke(new EventSourceException("The maximum number of retries has been reached."));
+                onError?.Invoke(this, new EventSourceException("The maximum number of retries has been reached."));
                 break;
             }
 
@@ -69,7 +69,7 @@ public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) :
 
                 retryCount = 0;
                 var onConnect = OnConnect;
-                onConnect?.Invoke();
+                onConnect?.Invoke(this, EventArgs.Empty);
 
                 await ProcessEventStreamAsync(stream, cancellationToken).ConfigureAwait(false);
             }
@@ -78,7 +78,7 @@ public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) :
                 var exception = new EventSourceException("There was an error while connecting to the event source.", e);
 
                 var onError = OnError;
-                onError?.Invoke(exception);
+                onError?.Invoke(this, exception);
 
                 await Task.Delay(_retryInterval, cancellationToken).ConfigureAwait(false);
             }
@@ -91,7 +91,7 @@ public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) :
     {
         using var reader = new StreamReader(stream, Encoding.UTF8, false);
 
-        var currentEvent = new ServerSentEvent();
+        var currentEvent = new ServerSentEventArgs();
         string? idBuffer = null;
         var dataBuffer = new StringBuilder();
 
@@ -125,12 +125,12 @@ public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) :
                     currentEvent.Data = dataBuffer.ToString();
 
                     var onMessage = OnMessage;
-                    onMessage?.Invoke(currentEvent);
+                    onMessage?.Invoke(this, currentEvent);
 
                     dataBuffer.Clear();
                 }
 
-                currentEvent = new ServerSentEvent();
+                currentEvent = new ServerSentEventArgs();
                 continue;
             }
 
@@ -188,6 +188,6 @@ public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) :
         _cancellationTokenSource?.Cancel();
         _cancellationTokenSource = null;
         var onDisconnect = OnDisconnect;
-        onDisconnect?.Invoke();
+        onDisconnect?.Invoke(this, EventArgs.Empty);
     }
 }
