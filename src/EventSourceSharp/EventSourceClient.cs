@@ -8,13 +8,13 @@ using System.Threading.Tasks;
 
 namespace EventSourceSharp;
 
-public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) : IEventSourceClient
+public class EventSourceClient(TimeSpan? retryInterval = null, int maxRetries = 5) : IEventSourceClient
 {
     private readonly HttpClient _httpClient = new();
     private CancellationTokenSource? _cancellationTokenSource;
-    private TimeSpan _retryInterval = TimeSpan.FromMilliseconds(retryInterval);
+    private TimeSpan _retryInterval = retryInterval ?? TimeSpan.FromSeconds(3);
     private bool _running;
-    private string _lastEventId = string.Empty;
+    private string? _lastEventId;
 
     public event EventHandler? OnConnect;
     public event EventHandler? OnDisconnect;
@@ -75,7 +75,7 @@ public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) :
             }
             catch (Exception e)
             {
-                var exception = new EventSourceException("There was an error while connecting to the event source.", e);
+                var exception = new EventSourceException("A possible network error occured.", e);
 
                 var onError = OnError;
                 onError?.Invoke(this, exception);
@@ -92,7 +92,6 @@ public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) :
         using var reader = new StreamReader(stream, Encoding.UTF8, false);
 
         var currentEvent = new ServerSentEventArgs();
-        string? idBuffer = null;
         var dataBuffer = new StringBuilder();
 
         while (_running && !cancellationToken.IsCancellationRequested)
@@ -101,19 +100,12 @@ public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) :
 
             if (string.IsNullOrWhiteSpace(line))
             {
-                switch (idBuffer)
+                _lastEventId = currentEvent.Id switch
                 {
-                    case null:
-                        break;
-                    case "":
-                        _lastEventId = string.Empty;
-                        break;
-                    default:
-                        _lastEventId = idBuffer;
-                        currentEvent.Id = idBuffer;
-                        idBuffer = null;
-                        break;
-                }
+                    null => _lastEventId,
+                    "" => null,
+                    _ => currentEvent.Id,
+                };
 
                 if (dataBuffer.Length > 0)
                 {
@@ -169,7 +161,7 @@ public class EventSourceClient(int retryInterval = 3_000, int maxRetries = 10) :
                     dataBuffer.Append('\n');
                     break;
                 case "id":
-                    idBuffer = string.IsNullOrWhiteSpace(value) ? string.Empty : value;
+                    currentEvent.Id = string.IsNullOrWhiteSpace(value) ? string.Empty : value;
                     break;
                 case "retry":
                     if (int.TryParse(value, out var retry))
