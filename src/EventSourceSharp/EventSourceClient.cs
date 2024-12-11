@@ -55,7 +55,7 @@ public class EventSourceClient(TimeSpan? retryInterval = null, int maxRetries = 
             try
             {
                 request.Headers.Remove("Last-Event-ID");
-                if (_lastEventId != string.Empty)
+                if (_lastEventId != null)
                 {
                     request.Headers.Add("Last-Event-ID", _lastEventId);
                 }
